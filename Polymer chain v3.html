@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Моделювання Полімерного Клубка (з кутом)</title>
+    <!-- Підключення бібліотеки Plotly.js -->
+    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            width: 95%;
+            max-width: 1400px; /* Increased max-width */
+        }
+        .controls, .results {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-width: 280px; /* Slightly wider controls/results */
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .controls label {
+            font-weight: bold;
+            margin-bottom: -10px;
+            display: block; /* Ensure label takes full width */
+        }
+        .controls input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 18px);
+            box-sizing: border-box; /* Include padding in width */
+        }
+         .controls .tooltip {
+            font-size: 0.85em;
+            color: #555;
+            margin-top: -10px;
+             margin-bottom: 5px;
+        }
+        .controls button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .results h2 {
+             margin-top: 0;
+             color: #555;
+        }
+        .results p {
+            margin-bottom: 10px;
+        }
+        .results span {
+            font-weight: bold;
+            color: #0056b3;
+        }
+        #plotDiv {
+            width: 100%;
+            min-width: 450px; /* Minimum width */
+            height: 550px; /* Slightly taller plot */
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-grow: 1;
+        }
+         .error {
+            color: #dc3545;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>3D Моделювання та Оцінка Розмірів Полімерного Клубка</h1>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Параметри Моделювання</h2>
+            <label for="numMonomers">Кількість мономерів (n):</label>
+            <input type="number" id="numMonomers" value="100" min="2">
+
+            <label for="monomerLength">Довжина мономера (l):</label>
+            <input type="number" id="monomerLength" value="1" step="0.1" min="0.1">
+
+            <label for="maxAngleDeviation">Макс. кут відхилення (°):</label>
+            <input type="number" id="maxAngleDeviation" value="180" min="0" max="180" step="1">
+             <div class="tooltip">0° - жорсткий стержень, 180° - повна свобода (випадковий клубок). Менші значення імітують жорсткіший ланцюг.</div>
+
+            <button id="simulateButton">Запустити Моделювання</button>
+             <div id="errorDiv" class="error"></div>
+        </div>
+
+        <div id="plotDiv">
+            <!-- Plotly 3D plot will appear here -->
+        </div>
+
+        <div class="results" id="resultsDiv" style="display: none;">
+            <h2>Результати Оцінки</h2>
+            <p>Лінійний розмір по X (Lx): <span id="resultLx"></span></p>
+            <p>Лінійний розмір по Y (Ly): <span id="resultLy"></span></p>
+            <p>Лінійний розмір по Z (Lz): <span id="resultLz"></span></p>
+            <p><strong>Усереднений діаметр:</strong> <span id="resultAvgDiameter"></span></p>
+            <p>Середньоквадратична відстань <br> між кінцями (&lt;R²&gt;<sup>1/2</sup>): <span id="resultEndToEnd"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const simulateButton = document.getElementById('simulateButton');
+        const numMonomersInput = document.getElementById('numMonomers');
+        const monomerLengthInput = document.getElementById('monomerLength');
+        const maxAngleInput = document.getElementById('maxAngleDeviation');
+        const plotDiv = document.getElementById('plotDiv');
+        const resultsDiv = document.getElementById('resultsDiv');
+        const errorDiv = document.getElementById('errorDiv');
+
+        // --- Vector Math Helpers ---
+        function normalize(v) {
+            const mag = Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+            if (mag === 0) return [0, 0, 0]; // Avoid division by zero
+            return [v[0] / mag, v[1] / mag, v[2] / mag];
+        }
+
+        function crossProduct(a, b) {
+            return [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+        }
+
+        function addVectors(a, b) {
+            // Basic check for valid inputs
+             if (!a || !b || a.length !== 3 || b.length !== 3) {
+                 console.error("Invalid vectors for addition:", a, b);
+                 // Return a neutral element or throw an error, depending on desired handling
+                 return [0, 0, 0];
+             }
+            return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+        }
+
+
+        function scaleVector(v, s) {
+             // Basic check for valid inputs
+             if (!v || v.length !== 3) {
+                  console.error("Invalid vector for scaling:", v);
+                  return [0, 0, 0];
+             }
+            return [v[0] * s, v[1] * s, v[2] * s];
+        }
+
+        function degToRad(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        // --- Function to run simulation and plot ---
+        function runSimulation() {
+            errorDiv.textContent = ''; // Clear previous errors
+            resultsDiv.style.display = 'none'; // Hide results initially
+
+            // 1. Get Input Values
+            const n = parseInt(numMonomersInput.value);
+            const l = parseFloat(monomerLengthInput.value);
+            const maxAngleDeviationDeg = parseFloat(maxAngleInput.value);
+
+            // 2. Input Validation
+            if (isNaN(n) || n < 2 || isNaN(l) || l <= 0 || isNaN(maxAngleDeviationDeg) || maxAngleDeviationDeg < 0 || maxAngleDeviationDeg > 180) {
+                 errorDiv.textContent = 'Будь ласка, введіть коректні значення (n ≥ 2, l > 0, кут 0-180°).';
+                Plotly.purge(plotDiv); // Clear previous plot
+                return;
+            }
+            const maxAngleRad = degToRad(maxAngleDeviationDeg); // Convert max angle to radians
+
+            // 3. Simulation Core
+            let xCoords = [0];
+            let yCoords = [0];
+            let zCoords = [0];
+
+            let currentX = 0;
+            let currentY = 0;
+            let currentZ = 0;
+
+            let minX = 0, maxX = 0;
+            let minY = 0, maxY = 0;
+            let minZ = 0, maxZ = 0;
+
+            // Store the direction vector of the *previous* segment
+            let prev_dx = 0, prev_dy = 0, prev_dz = 0; // Initialize
+
+            for (let i = 0; i < n; i++) {
+                let dx, dy, dz; // Components of the *current* segment
+
+                if (i === 0) {
+                    // --- First segment: Generate a completely random direction ---
+                    const theta = Math.acos(2 * Math.random() - 1); // Polar angle (0 to pi)
+                    const phi = 2 * Math.PI * Math.random();       // Azimuthal angle (0 to 2pi)
+                    dx = l * Math.sin(theta) * Math.cos(phi);
+                    dy = l * Math.sin(theta) * Math.sin(phi);
+                    dz = l * Math.cos(theta);
+                } else {
+                    // --- Subsequent segments: Generate direction relative to the previous one ---
+                    const v_prev = [prev_dx, prev_dy, prev_dz];
+                    const v_prev_norm = normalize(v_prev);
+
+                    // Handle case where previous segment had zero length (shouldn't happen with l > 0)
+                    if (v_prev_norm[0] === 0 && v_prev_norm[1] === 0 && v_prev_norm[2] === 0) {
+                        // Fallback to random direction if normalization failed
+                        const theta = Math.acos(2 * Math.random() - 1);
+                        const phi = 2 * Math.PI * Math.random();
+                        dx = l * Math.sin(theta) * Math.cos(phi);
+                        dy = l * Math.sin(theta) * Math.sin(phi);
+                        dz = l * Math.cos(theta);
+
+                    } else {
+
+                        // Generate random angles for the new direction relative to v_prev_norm
+                        // alpha: angle between v_prev_norm and the new vector
+                        // Generate cos(alpha) uniformly for more physically realistic random walk,
+                        // then derive alpha. But for simplicity and user control, let's use uniform alpha within the max range.
+                        const alpha = Math.random() * maxAngleRad; // Deviation angle from 0 to maxAngleRad
+
+                        // beta: azimuthal angle around the v_prev_norm axis
+                        const beta = Math.random() * 2 * Math.PI;
+
+                        // Construct a local coordinate system (orthonormal basis)
+                        // based on v_prev_norm
+                        let t = [1, 0, 0]; // Find a vector not parallel to v_prev_norm
+                        // Check if v_prev_norm is aligned with t (use a tolerance)
+                        if (Math.abs(v_prev_norm[0]) > 0.99) {
+                            t = [0, 1, 0]; // If close to x-axis, use y-axis
+                        }
+
+                        const u = normalize(crossProduct(v_prev_norm, t)); // First perpendicular vector
+                        const w = crossProduct(v_prev_norm, u);          // Second perpendicular vector (already normalized)
+
+                        // Calculate the new direction vector in the global coordinate system
+                        const cosAlpha = Math.cos(alpha);
+                        const sinAlpha = Math.sin(alpha);
+                        const cosBeta = Math.cos(beta);
+                        const sinBeta = Math.sin(beta);
+
+                        // v_new_norm = v_prev_norm * cos(alpha) + u * sin(alpha) * cos(beta) + w * sin(alpha) * sin(beta)
+                        const term1 = scaleVector(v_prev_norm, cosAlpha);
+                        const term2 = scaleVector(u, sinAlpha * cosBeta);
+                        const term3 = scaleVector(w, sinAlpha * sinBeta);
+
+                        const v_new_norm = addVectors(term1, addVectors(term2, term3));
+
+                        // Get the actual step vector for this segment
+                        const step = scaleVector(v_new_norm, l);
+                        dx = step[0];
+                        dy = step[1];
+                        dz = step[2];
+                    }
+                }
+
+                // Update current position
+                currentX += dx;
+                currentY += dy;
+                currentZ += dz;
+
+                // Store coordinates for plotting
+                xCoords.push(currentX);
+                yCoords.push(currentY);
+                zCoords.push(currentZ);
+
+                // Update min/max boundaries
+                minX = Math.min(minX, currentX);
+                maxX = Math.max(maxX, currentX);
+                minY = Math.min(minY, currentY);
+                maxY = Math.max(maxY, currentY);
+                minZ = Math.min(minZ, currentZ);
+                maxZ = Math.max(maxZ, currentZ);
+
+                // Store the direction of the *current* segment for the *next* iteration
+                prev_dx = dx;
+                prev_dy = dy;
+                prev_dz = dz;
+            }
+
+            // 4. Calculate Dimensions
+            const Lx = maxX - minX;
+            const Ly = maxY - minY;
+            const Lz = maxZ - minZ;
+            const avgDiameter = (Lx + Ly + Lz) / 3;
+            const endToEndSq = currentX**2 + currentY**2 + currentZ**2; // End position relative to start (0,0,0)
+            const endToEndDist = Math.sqrt(endToEndSq);
+
+            // 5. Display Results
+            document.getElementById('resultLx').textContent = Lx.toFixed(4);
+            document.getElementById('resultLy').textContent = Ly.toFixed(4);
+            document.getElementById('resultLz').textContent = Lz.toFixed(4);
+            document.getElementById('resultAvgDiameter').textContent = avgDiameter.toFixed(4);
+            document.getElementById('resultEndToEnd').textContent = endToEndDist.toFixed(4);
+            resultsDiv.style.display = 'block';
+
+            // 6. Plotting with Plotly
+            const trace = {
+                x: xCoords, y: yCoords, z: zCoords,
+                mode: 'lines+markers',
+                type: 'scatter3d',
+                line: { color: '#1f77b4', width: 3 },
+                marker: { color: '#ff7f0e', size: 4, opacity: 0.8 }
+            };
+
+            const layout = {
+                 title: `Модель Клубка (N=${n}, l=${l}, Кут≤${maxAngleDeviationDeg}°)`,
+                scene: {
+                    xaxis: { title: 'X', zeroline: false },
+                    yaxis: { title: 'Y', zeroline: false },
+                    zaxis: { title: 'Z', zeroline: false },
+                    aspectratio: { x: 1, y: 1, z: 1 },
+                    camera: { eye: {x: 1.5, y: 1.5, z: 1.5} } // Adjusted initial camera
+                },
+                margin: { l: 10, r: 10, b: 10, t: 50 }
+            };
+
+            Plotly.newPlot(plotDiv, [trace], layout);
+        }
+
+        // --- Event Listener ---
+        simulateButton.addEventListener('click', runSimulation);
+
+        // --- Initial Run on Load ---
+        window.addEventListener('load', runSimulation);
+
+    </script>
+
+</body>
+</html>
