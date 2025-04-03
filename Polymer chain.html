@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Моделювання Полімерного Клубка</title>
+    <!-- Підключення бібліотеки Plotly.js -->
+    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            width: 95%;
+            max-width: 1200px;
+        }
+        .controls, .results {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-width: 250px;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .controls label {
+            font-weight: bold;
+            margin-bottom: -10px; /* Reduce space below label */
+        }
+        .controls input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 18px); /* Adjust for padding */
+        }
+        .controls button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .results h2 {
+             margin-top: 0;
+             color: #555;
+        }
+        .results p {
+            margin-bottom: 10px;
+        }
+        .results span {
+            font-weight: bold;
+            color: #0056b3;
+        }
+        #plotDiv {
+            width: 100%;
+            min-width: 400px; /* Ensure plot has some minimum width */
+            height: 500px; /* Fixed height for the plot */
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-grow: 1; /* Allow plot to take available space */
+        }
+         .error {
+            color: #dc3545;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>3D Моделювання та Оцінка Розмірів Полімерного Клубка</h1>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Параметри Моделювання</h2>
+            <label for="numMonomers">Кількість мономерів (n):</label>
+            <input type="number" id="numMonomers" value="100" min="2">
+
+            <label for="monomerLength">Довжина мономера (l):</label>
+            <input type="number" id="monomerLength" value="1" step="0.1" min="0.1">
+
+            <button id="simulateButton">Запустити Моделювання</button>
+             <div id="errorDiv" class="error"></div>
+        </div>
+
+        <div id="plotDiv">
+            <!-- Plotly 3D plot will appear here -->
+        </div>
+
+        <div class="results" id="resultsDiv" style="display: none;">
+            <h2>Результати Оцінки</h2>
+            <p>Лінійний розмір по X (Lx): <span id="resultLx"></span></p>
+            <p>Лінійний розмір по Y (Ly): <span id="resultLy"></span></p>
+            <p>Лінійний розмір по Z (Lz): <span id="resultLz"></span></p>
+            <p><strong>Усереднений діаметр:</strong> <span id="resultAvgDiameter"></span></p>
+            <p>Середньоквадратична відстань <br> між кінцями (&lt;R²&gt;<sup>1/2</sup>): <span id="resultEndToEnd"></span></p>
+        </div>
+    </div>
+
+    <script>
+        const simulateButton = document.getElementById('simulateButton');
+        const numMonomersInput = document.getElementById('numMonomers');
+        const monomerLengthInput = document.getElementById('monomerLength');
+        const plotDiv = document.getElementById('plotDiv');
+        const resultsDiv = document.getElementById('resultsDiv');
+        const errorDiv = document.getElementById('errorDiv');
+
+        // --- Function to run simulation and plot ---
+        function runSimulation() {
+            errorDiv.textContent = ''; // Clear previous errors
+            resultsDiv.style.display = 'none'; // Hide results initially
+
+            // 1. Get Input Values
+            const n = parseInt(numMonomersInput.value);
+            const l = parseFloat(monomerLengthInput.value);
+
+            // 2. Input Validation
+            if (isNaN(n) || n < 2 || isNaN(l) || l <= 0) {
+                 errorDiv.textContent = 'Будь ласка, введіть коректні значення (n ≥ 2, l > 0).';
+                Plotly.purge(plotDiv); // Clear previous plot if validation fails
+                return;
+            }
+
+            // 3. Simulation Core (Simplified Random Walk in 3D)
+            let xCoords = [0];
+            let yCoords = [0];
+            let zCoords = [0];
+
+            let currentX = 0;
+            let currentY = 0;
+            let currentZ = 0;
+
+            let minX = 0, maxX = 0;
+            let minY = 0, maxY = 0;
+            let minZ = 0, maxZ = 0;
+
+            for (let i = 0; i < n; i++) {
+                // Generate random direction using spherical coordinates
+                const theta = Math.acos(2 * Math.random() - 1); // Polar angle (0 to pi)
+                const phi = 2 * Math.PI * Math.random();       // Azimuthal angle (0 to 2pi)
+
+                // Calculate step components
+                const dx = l * Math.sin(theta) * Math.cos(phi);
+                const dy = l * Math.sin(theta) * Math.sin(phi);
+                const dz = l * Math.cos(theta);
+
+                // Update current position
+                currentX += dx;
+                currentY += dy;
+                currentZ += dz;
+
+                // Store coordinates
+                xCoords.push(currentX);
+                yCoords.push(currentY);
+                zCoords.push(currentZ);
+
+                // Update min/max boundaries
+                minX = Math.min(minX, currentX);
+                maxX = Math.max(maxX, currentX);
+                minY = Math.min(minY, currentY);
+                maxY = Math.max(maxY, currentY);
+                minZ = Math.min(minZ, currentZ);
+                maxZ = Math.max(maxZ, currentZ);
+            }
+
+            // 4. Calculate Dimensions
+            const Lx = maxX - minX;
+            const Ly = maxY - minY;
+            const Lz = maxZ - minZ;
+            const avgDiameter = (Lx + Ly + Lz) / 3;
+
+            // Calculate end-to-end distance (squared and then sqrt)
+            const endToEndSq = currentX**2 + currentY**2 + currentZ**2;
+            const endToEndDist = Math.sqrt(endToEndSq);
+
+            // 5. Display Results
+            document.getElementById('resultLx').textContent = Lx.toFixed(4);
+            document.getElementById('resultLy').textContent = Ly.toFixed(4);
+            document.getElementById('resultLz').textContent = Lz.toFixed(4);
+            document.getElementById('resultAvgDiameter').textContent = avgDiameter.toFixed(4);
+            document.getElementById('resultEndToEnd').textContent = endToEndDist.toFixed(4);
+            resultsDiv.style.display = 'block'; // Show results section
+
+            // 6. Plotting with Plotly
+            const trace = {
+                x: xCoords,
+                y: yCoords,
+                z: zCoords,
+                mode: 'lines+markers', // Show lines connecting points and markers at each point
+                type: 'scatter3d',
+                line: {
+                    color: '#1f77b4', // Blue color for the line
+                    width: 3
+                },
+                marker: {
+                    color: '#ff7f0e', // Orange color for markers
+                    size: 4,
+                    opacity: 0.8
+                }
+            };
+
+            const layout = {
+                title: `Модель Полімерного Клубка (N=${n}, l=${l})`,
+                scene: {
+                    xaxis: { title: 'X' },
+                    yaxis: { title: 'Y' },
+                    zaxis: { title: 'Z' },
+                    aspectratio: { x: 1, y: 1, z: 1 }, // Make axes scale equally
+                     camera: {
+                        eye: {x: 1.5, y: 1.5, z: 1.5} // Adjust initial camera angle slightly
+                    }
+                },
+                margin: { l: 10, r: 10, b: 10, t: 50 } // Adjust plot margins
+            };
+
+            Plotly.newPlot(plotDiv, [trace], layout);
+        }
+
+        // --- Event Listener ---
+        simulateButton.addEventListener('click', runSimulation);
+
+        // --- Initial Run on Load ---
+        // Optional: Run simulation once when the page loads with default values
+         window.addEventListener('load', runSimulation);
+
+    </script>
+
+</body>
+</html>
