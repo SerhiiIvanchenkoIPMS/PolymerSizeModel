@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milling Drum Filling Calculator</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .input-section, .results-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            border-radius: 5px;
+        }
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .input-item {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9em;
+        }
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .results-section h3 {
+            margin-top: 0;
+            color: #0056b3;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .results-section p {
+            margin: 8px 0;
+            font-size: 1.05em;
+        }
+        .results-section span {
+            font-weight: bold;
+            color: #d9534f; /* Highlight results */
+        }
+        .verification {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px dashed #ccc;
+        }
+         .verification p {
+            font-size: 0.95em;
+            color: #31708f; /* Info color */
+         }
+        .unit {
+            font-size: 0.8em;
+            color: #777;
+        }
+        /* Tooltip Styling */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            border-bottom: 1px dotted black;
+         }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 220px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Position the tooltip above the text */
+            left: 50%;
+            margin-left: -110px; /* Use half of the width to center */
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.8em;
+            font-weight: normal;
+            line-height: 1.3;
+         }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Milling Drum Filling Calculator</h1>
+
+    <div class="input-section">
+        <h2>Input Parameters</h2>
+        <form id="millingForm">
+            <div class="input-group">
+                <div class="input-item">
+                    <label for="drumVolume">Drum Volume (<span class="unit">cm³</span>):</label>
+                    <input type="number" id="drumVolume" value="20" step="any" required>
+                </div>
+                <div class="input-item">
+                    <label for="fillPercentage">Target Filling Percentage (<span class="unit">%</span>):</label>
+                    <input type="number" id="fillPercentage" value="40" step="any" min="0" max="100" required>
+                </div>
+                <div class="input-item">
+                     <label for="ballPackingFactor" class="tooltip">Ball Packing Factor:
+                         <span class="tooltiptext">Fraction of volume occupied by balls in their random packing (typically 0.59-0.64).</span>
+                     </label>
+                    <input type="number" id="ballPackingFactor" value="0.59" step="any" min="0" max="1" required>
+                </div>
+                <div class="input-item">
+                    <label for="ballsDensity">Milling Media (Balls) Density (<span class="unit">g/cm³</span>):</label>
+                    <input type="number" id="ballsDensity" value="5.70" step="any" required>
+                </div>
+            </div>
+             <div class="input-group">
+                 <div class="input-item">
+                    <label for="powderBulkDensity" class="tooltip">Powder Bulk Density (<span class="unit">g/cm³</span>):
+                        <span class="tooltiptext">Experimentally determined density of loosely packed powder (mass/volume including voids).</span>
+                    </label>
+                    <input type="number" id="powderBulkDensity" value="1.1438" step="any" required>
+                </div>
+                <div class="input-item">
+                    <label for="powderTrueDensity">Powder True Density (<span class="unit">g/cm³</span>):</label>
+                    <input type="number" id="powderTrueDensity" value="6.02" step="any" required>
+                </div>
+                 <div class="input-item">
+                    <label for="powderSurfaceArea" class="tooltip">Powder Specific Surface Area (<span class="unit">m²/g</span>):
+                        <span class="tooltiptext">Total surface area per unit mass of powder (e.g., from BET analysis).</span>
+                    </label>
+                    <input type="number" id="powderSurfaceArea" value="25" step="any" required>
+                </div>
+            </div>
+             <div class="input-group">
+                 <div class="input-item">
+                    <label for="parMolecularWeight">Surfactant (PAR) Molecular Weight (<span class="unit">g/mol</span>):</label>
+                    <input type="number" id="parMolecularWeight" value="76.094" step="any" required>
+                </div>
+                 <div class="input-item">
+                    <label for="parFootprintArea" class="tooltip">Surfactant (PAR) Molecule Footprint Area (<span class="unit">m²/molecule</span>):
+                        <span class="tooltiptext">Area occupied by a single surfactant molecule on the powder surface (from literature). Use E notation e.g., 2.16E-19.</span>
+                    </label>
+                    <input type="number" id="parFootprintArea" value="2.16E-19" step="any" required>
+                </div>
+                 <div class="input-item">
+                    <label for="parDensity">Surfactant (PAR) Density (<span class="unit">g/cm³</span>):</label>
+                    <input type="number" id="parDensity" value="1.0597" step="any" required>
+                </div>
+            </div>
+             <div class="input-group">
+                 <div class="input-item">
+                    <label for="liquidDensity">Liquid Density (<span class="unit">g/cm³</span>):</label>
+                    <input type="number" id="liquidDensity" value="0.786" step="any" required>
+                </div>
+            </div>
+
+            <button type="button" onclick="calculateFilling()">Calculate Component Weights</button>
+        </form>
+    </div>
+
+    <div class="results-section" id="results" style="display: none;">
+        <h2>Calculation Results</h2>
+
+        <h3>Required Components:</h3>
+        <p>Powder Weight (G3): <span id="powderWeight"></span> g</p>
+        <p>Surfactant (PAR) Weight (G4): <span id="parWeight"></span> g</p>
+        <p>Liquid Weight (G5): <span id="liquidWeight"></span> g</p>
+        <p>Milling Media (Balls) Weight (G6): <span id="ballsWeight"></span> g</p>
+
+        <div class="verification">
+            <h3>Verification:</h3>
+            <p>Total Volume Occupied by Balls (incl. voids) (B51): <span id="volumeBallsWithVoids"></span> cm³</p>
+            <p>Volume of Voids between Balls (to be filled by powder slurry) (B52): <span id="volumeVoidsBetweenBalls"></span> cm³</p>
+            <p>Powder Packing Factor (B59): <span id="powderPackingFactor"></span></p>
+            <p>Calculated Powder Volume (solid): <span id="powderVolumeActual"></span> cm³</p>
+            <p>Calculated Surfactant (PAR) Volume: <span id="parVolumeActual"></span> cm³</p>
+            <p>Calculated Liquid Volume: <span id="liquidVolumeActual"></span> cm³</p>
+            <p>Calculated Milling Media (Balls) Volume (solid): <span id="ballsVolumeActual"></span> cm³</p>
+            <p><b>Total Calculated Volume of Components (H7): <span id="totalVolumeCalculated"></span> cm³</b></p>
+            <p><b>Calculated Filling Percentage: <span id="calculatedFillPercentage"></span> %</b></p>
+            <p><i>(Compare Total Calculated Volume with B51, and Calculated Filling Percentage with the Target Percentage)</i></p>
+         </div>
+    </div>
+
+    <script>
+        const AVOGADRO_NUMBER = 6.02214076e23; // Standard value
+
+        function calculateFilling() {
+            // --- Get Input Values ---
+            const drumVolume = parseFloat(document.getElementById('drumVolume').value); // E3
+            const fillPercentage = parseFloat(document.getElementById('fillPercentage').value); // G8
+            const ballPackingFactor = parseFloat(document.getElementById('ballPackingFactor').value); // B50
+            const ballsDensity = parseFloat(document.getElementById('ballsDensity').value); // B53
+            const powderBulkDensity = parseFloat(document.getElementById('powderBulkDensity').value); // B58
+            const powderTrueDensity = parseFloat(document.getElementById('powderTrueDensity').value); // B57
+            const powderSurfaceArea = parseFloat(document.getElementById('powderSurfaceArea').value); // B74 (m²/g)
+            const parMolecularWeight = parseFloat(document.getElementById('parMolecularWeight').value); // B72 (g/mol)
+            const parFootprintArea = parseFloat(document.getElementById('parFootprintArea').value); // B70 (m²/molecule)
+            const parDensity = parseFloat(document.getElementById('parDensity').value); // B73 (g/cm³)
+            const liquidDensity = parseFloat(document.getElementById('liquidDensity').value); // B65 (g/cm³)
+
+            // --- Basic Input Validation ---
+            if (isNaN(drumVolume) || isNaN(fillPercentage) || isNaN(ballPackingFactor) || isNaN(ballsDensity) ||
+                isNaN(powderBulkDensity) || isNaN(powderTrueDensity) || isNaN(powderSurfaceArea) ||
+                isNaN(parMolecularWeight) || isNaN(parFootprintArea) || isNaN(parDensity) || isNaN(liquidDensity) ||
+                drumVolume <= 0 || powderTrueDensity <= 0 || ballsDensity <= 0 || parDensity <= 0 || liquidDensity <= 0 ||
+                powderBulkDensity <=0 || powderSurfaceArea <= 0 || parMolecularWeight <= 0 || parFootprintArea <= 0 ||
+                ballPackingFactor <= 0 || ballPackingFactor >= 1 || fillPercentage < 0 || fillPercentage > 100
+                ) {
+                alert("Please enter valid positive numbers for all inputs. Packing factor must be between 0 and 1. Fill percentage between 0 and 100.");
+                return;
+            }
+             if (powderBulkDensity > powderTrueDensity) {
+                alert("Error: Powder Bulk Density cannot be greater than Powder True Density.");
+                return;
+            }
+
+
+            // --- Calculations ---
+
+            // 1. Powder Weight Calculation (G3)
+            const volumeBallsWithVoids = drumVolume * (fillPercentage / 100); // B51 = E3 * G8 / 100
+            const volumeVoidsBetweenBalls = volumeBallsWithVoids * (1 - ballPackingFactor); // B52 = B51 * (1 - B50)
+            const powderWeight = powderBulkDensity * volumeVoidsBetweenBalls; // G3 = B58 * B52
+
+            // 2. Surfactant (PAR) Weight Calculation (G4)
+            // Ensure units are consistent: powderSurfaceArea (m²/g), parFootprintArea (m²/molecule)
+            const parMoleculesNeededPerGram = powderSurfaceArea / parFootprintArea; // B75 / B74 -> molecules/g
+            const parMolesPerGram = parMoleculesNeededPerGram / AVOGADRO_NUMBER; // B76 = B75 / B71
+            const parMassPerGramPowder = parMolecularWeight * parMolesPerGram; // B77 = B72 * B76
+            const parTotalWeight = parMassPerGramPowder * powderWeight; // G4 = B77 * G3
+
+            // 3. Liquid Weight Calculation (G5)
+            const powderPackingFactor = powderBulkDensity / powderTrueDensity; // B59 = B58 / B57
+            if (powderPackingFactor >= 1) {
+                 alert("Calculated Powder Packing Factor is >= 1 (Bulk Density >= True Density), which is impossible. Please check densities.");
+                 return;
+            }
+            const parVolume = parTotalWeight / parDensity; // B79 = G4 / B73
+            // Volume available for liquid is the void space between balls (B52), minus the volume occupied by *solid* powder particles within that void space, minus the PAR volume.
+            // Volume of solid powder = powderWeight / powderTrueDensity = (B58 * B52) / B57
+            // Fraction of void space (B52) occupied by solid powder = (Powder Vol Solid) / B52 = B58 / B57 = B59
+            // Volume occupied by solid powder within B52 = B52 * B59
+            // Volume occupied by voids *within* the bulk powder in B52 = B52 * (1 - B59) --> This is the space liquid+PAR fills.
+            const liquidVolume = volumeVoidsBetweenBalls * (1 - powderPackingFactor) - parVolume; // B64 = B52 * (1 - B59) - B79
+
+            if (liquidVolume < 0) {
+                alert("Calculated liquid volume is negative. This might happen if the surfactant volume is very high or powder packing is extremely dense. Check input parameters.");
+                 // Display intermediate results anyway for debugging, but zero out liquid
+                 document.getElementById('liquidWeight').textContent = "Error (<0)";
+                 document.getElementById('liquidVolumeActual').textContent = liquidVolume.toFixed(4) + " (Error)";
+                 // Continue other calculations if possible
+            }
+
+            const liquidWeight = (liquidVolume > 0) ? liquidVolume * liquidDensity : 0; // G5 = B64 * B65
+
+            // 4. Milling Media (Balls) Weight Calculation (G6)
+            // Volume occupied by the *solid* material of the balls
+            const ballsVolumeSolid = volumeBallsWithVoids - volumeVoidsBetweenBalls; // Equivalent to B51 * B50
+            // Alternative: B51 - B52 = E3*(G8/100) - E3*(G8/100)*(1-B50) = E3*(G8/100) * (1 - (1-B50)) = E3*(G8/100)*B50
+            const ballsWeight = ballsVolumeSolid * ballsDensity; // G6 = (B51 - B52) * B53
+
+            // --- Verification Calculations ---
+            const powderVolumeActual = powderWeight / powderTrueDensity; // H3 = G3 / B57
+            const parVolumeActual = parTotalWeight / parDensity; // H4 = G4 / B73 (Same as B79)
+            const liquidVolumeActual = (liquidVolume > 0) ? liquidVolume : 0; // H5 = G5 / B65 (Recalculated from weight or use B64)
+            const ballsVolumeActual = ballsWeight / ballsDensity; // H6 = G6 / B53 (Same as ballsVolumeSolid)
+
+            const totalVolumeCalculated = powderVolumeActual + parVolumeActual + liquidVolumeActual + ballsVolumeActual; // H7 = SUM(H3:H6)
+            const calculatedFillPercentage = (totalVolumeCalculated / drumVolume) * 100;
+
+            // --- Display Results ---
+            document.getElementById('results').style.display = 'block';
+
+            document.getElementById('powderWeight').textContent = powderWeight.toFixed(4);
+            document.getElementById('parWeight').textContent = parTotalWeight.toFixed(4);
+            if (liquidVolume >= 0) {
+                document.getElementById('liquidWeight').textContent = liquidWeight.toFixed(4);
+                document.getElementById('liquidVolumeActual').textContent = liquidVolumeActual.toFixed(4);
+            } // Error message handled earlier if negative
+            document.getElementById('ballsWeight').textContent = ballsWeight.toFixed(4);
+
+            document.getElementById('volumeBallsWithVoids').textContent = volumeBallsWithVoids.toFixed(4);
+            document.getElementById('volumeVoidsBetweenBalls').textContent = volumeVoidsBetweenBalls.toFixed(4);
+            document.getElementById('powderPackingFactor').textContent = powderPackingFactor.toFixed(4);
+            document.getElementById('powderVolumeActual').textContent = powderVolumeActual.toFixed(4);
+            document.getElementById('parVolumeActual').textContent = parVolumeActual.toFixed(4);
+            // liquidVolumeActual already set above
+            document.getElementById('ballsVolumeActual').textContent = ballsVolumeActual.toFixed(4);
+            document.getElementById('totalVolumeCalculated').textContent = totalVolumeCalculated.toFixed(4);
+            document.getElementById('calculatedFillPercentage').textContent = calculatedFillPercentage.toFixed(2);
+
+        }
+
+         // Optional: Trigger calculation on initial load if default values are set
+         // window.onload = calculateFilling;
+
+    </script>
+
+</body>
+</html>
